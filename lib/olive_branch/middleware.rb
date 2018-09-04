@@ -6,7 +6,7 @@ module OliveBranch
       content_type =~ /application\/json/
     end
 
-    def self.default_exclude(env)
+    def self.default_exclude(_env)
       false
     end
   end
@@ -31,12 +31,18 @@ module OliveBranch
       end
 
       def underscore_params(env)
-        req = ActionDispatch::Request.new(env)
-        req.request_parameters
-        req.query_parameters
-
-        env["action_dispatch.request.request_parameters"].deep_transform_keys!(&:underscore)
-        env["action_dispatch.request.query_parameters"].deep_transform_keys!(&:underscore)
+        if defined?(Rails) && Rails::VERSION::MAJOR >= 5
+          begin
+            request_body = JSON.parse(env["rack.input"].read)
+            request_body.deep_transform_keys!(&:underscore)
+            req = StringIO.new(request_body.to_json)
+            env["rack.input"]     = req
+            env["CONTENT_LENGTH"] = req.length
+          rescue JSON::ParserError
+          end
+        else
+          env["action_dispatch.request.request_parameters"].deep_transform_keys!(&:underscore)
+        end
       end
     end
   end
@@ -107,7 +113,7 @@ module OliveBranch
         @dasherize
       else
         # probably misconfigured, do nothing
-        -> (string) { string }
+        ->(string) { string }
       end
     end
   end
